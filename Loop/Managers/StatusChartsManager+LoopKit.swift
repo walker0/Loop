@@ -14,7 +14,6 @@ import InsulinKit
 import LoopKit
 import SwiftCharts
 
-
 extension StatusChartsManager {
 
     private var dateFormatter: DateFormatter {
@@ -143,5 +142,4 @@ extension StatusChartsManager {
             )
         }
     }
-
 }

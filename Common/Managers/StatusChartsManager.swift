@@ -9,18 +9,22 @@
 import Foundation
 import HealthKit
 
-// TODO: Remove this dependency
-import LoopKit
-
 import SwiftCharts
 
+protocol TargetPointsCalculator {
+    var glucosePoints: [ChartPoint] { get }
+    var overridePoints: [ChartPoint] { get }
+    var overrideDurationPoints: [ChartPoint] { get }
+
+    func calculate(_ xAxisValues: [ChartAxisValue]?)
+}
 
 final class StatusChartsManager {
 
     // MARK: - Configuration
 
     private lazy var chartSettings: ChartSettings = {
-        let chartSettings = ChartSettings()
+        var chartSettings = ChartSettings()
         chartSettings.top = 12
         chartSettings.bottom = 0
         chartSettings.trailing = 8
@@ -44,13 +48,33 @@ final class StatusChartsManager {
         return numberFormatter
     }
 
-    private lazy var axisLineColor = UIColor.clear
+    private lazy var axisLineColor = UIColor.axisLineColor
 
-    private lazy var axisLabelSettings: ChartLabelSettings = ChartLabelSettings(font: UIFont.preferredFont(forTextStyle: UIFontTextStyle.caption1), fontColor: UIColor.secondaryLabelColor)
+    private lazy var axisLabelSettings: ChartLabelSettings = ChartLabelSettings(font: UIFont.preferredFont(forTextStyle: UIFontTextStyle.caption1), fontColor: UIColor.axisLabelColor)
 
     private lazy var guideLinesLayerSettings: ChartGuideLinesLayerSettings = ChartGuideLinesLayerSettings(linesColor: UIColor.gridColor)
 
     var panGestureRecognizer: UIPanGestureRecognizer?
+
+    func didReceiveMemoryWarning() {
+        xAxisValues = nil
+        glucosePoints = []
+        predictedGlucosePoints = []
+        alternatePredictedGlucosePoints = nil
+        targetGlucosePoints = []
+        targetOverridePoints = []
+        targetOverrideDurationPoints = []
+        iobPoints = []
+        cobPoints = []
+        basalDosePoints = []
+        bolusDosePoints = []
+        allDosePoints = []
+
+        glucoseChartCache = nil
+        iobChartCache = nil
+        cobChartCache = nil
+        doseChartCache = nil
+    }
 
     // MARK: - Data
 
@@ -94,12 +118,6 @@ final class StatusChartsManager {
                 let oldRange = glucoseDisplayRange
                 glucoseDisplayRange = oldRange
             }
-        }
-    }
-
-    var glucoseTargetRangeSchedule: GlucoseRangeSchedule? {
-        didSet {
-            targetGlucosePoints = []
         }
     }
 
@@ -147,6 +165,12 @@ final class StatusChartsManager {
 
     /// The chart points for alternate predicted glucose
     var alternatePredictedGlucosePoints: [ChartPoint]?
+
+    var targetPointsCalculator: TargetPointsCalculator? {
+        didSet {
+            targetGlucosePoints = []
+        }
+    }
 
     private var targetGlucosePoints: [ChartPoint] = [] {
         didSet {
@@ -218,7 +242,7 @@ final class StatusChartsManager {
         }
     }
 
-    private var xAxisValues: [ChartAxisValue]? {
+    internal var xAxisValues: [ChartAxisValue]? {
         didSet {
             if let xAxisValues = xAxisValues, xAxisValues.count > 1 {
                 xAxisModel = ChartAxisModel(axisValues: xAxisValues, lineColor: axisLineColor)
@@ -616,7 +640,7 @@ final class StatusChartsManager {
         return Chart(frame: frame, layers: layers.flatMap { $0 })
     }
 
-    private func generateXAxisValues() {
+    internal func generateXAxisValues() {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "h a"
 
@@ -656,24 +680,15 @@ final class StatusChartsManager {
             generateXAxisValues()
         }
 
-        if  let xAxisValues = xAxisValues, xAxisValues.count > 1,
-            targetGlucosePoints.count == 0,
-            let targets = glucoseTargetRangeSchedule
-        {
-            targetGlucosePoints = ChartPoint.pointsForGlucoseRangeSchedule(targets, xAxisValues: xAxisValues)
-
-            if let override = targets.temporaryOverride {
-                targetOverridePoints = ChartPoint.pointsForGlucoseRangeScheduleOverride(override, xAxisValues: xAxisValues)
-
-                targetOverrideDurationPoints = ChartPoint.pointsForGlucoseRangeScheduleOverrideDuration(override, xAxisValues: xAxisValues)
-            } else {
-                targetOverridePoints = []
-                targetOverrideDurationPoints = []
-            }
+        if let calculator = targetPointsCalculator,
+           targetGlucosePoints.count == 0 {
+            calculator.calculate(xAxisValues)
+            targetGlucosePoints = calculator.glucosePoints
+            targetOverridePoints = calculator.overridePoints
+            targetOverrideDurationPoints = calculator.overrideDurationPoints
         }
     }
 }
-
 
 private extension HKUnit {
     var glucoseUnitYAxisSegmentSize: Double {
