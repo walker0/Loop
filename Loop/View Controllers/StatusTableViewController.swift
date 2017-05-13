@@ -84,11 +84,12 @@ final class StatusTableViewController: UITableViewController, UIGestureRecognize
             }
         ]
 
-        let chartPanGestureRecognizer = UIPanGestureRecognizer()
-        chartPanGestureRecognizer.delegate = self
-        chartPanGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
-        tableView.addGestureRecognizer(chartPanGestureRecognizer)
-        charts.panGestureRecognizer = chartPanGestureRecognizer
+        let gestureRecognizer = UILongPressGestureRecognizer()
+        gestureRecognizer.delegate = self
+        gestureRecognizer.minimumPressDuration = 0.1
+        gestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+        tableView.addGestureRecognizer(gestureRecognizer)
+        charts.gestureRecognizer = gestureRecognizer
 
         // Toolbar
         toolbarItems![0].accessibilityLabel = NSLocalizedString("Add Meal", comment: "The label of the carb entry button")
@@ -435,8 +436,8 @@ final class StatusTableViewController: UITableViewController, UIGestureRecognize
         let charts = StatusChartsManager(colors: .default, settings: .default)
 
         charts.glucoseDisplayRange = (
-            min: HKQuantity(unit: HKUnit.milligramsPerDeciliterUnit(), doubleValue: 100),
-            max: HKQuantity(unit: HKUnit.milligramsPerDeciliterUnit(), doubleValue: 175)
+            min: HKQuantity(unit: HKUnit.milligramsPerDeciliter(), doubleValue: 100),
+            max: HKQuantity(unit: HKUnit.milligramsPerDeciliter(), doubleValue: 175)
         )
 
         return charts
@@ -543,7 +544,7 @@ final class StatusTableViewController: UITableViewController, UIGestureRecognize
 
             self.tableView(tableView, updateSubtitleFor: cell, at: indexPath)
 
-            let alpha: CGFloat = charts.panGestureRecognizer?.state == .possible ? 1 : 0
+            let alpha: CGFloat = charts.gestureRecognizer?.state == .possible ? 1 : 0
             cell.titleLabel?.alpha = alpha
             cell.subtitleLabel?.alpha = alpha
 
@@ -797,12 +798,8 @@ final class StatusTableViewController: UITableViewController, UIGestureRecognize
         if let bolusViewController = segue.source as? BolusViewController {
             if let bolus = bolusViewController.bolus, bolus > 0 {
                 self.bolusState = .enacting
-                let startDate = Date()
-                dataManager.enactBolus(units: bolus) { (error) in
+                dataManager.enactBolus(units: bolus) { (_) in
                     self.bolusState = nil
-                    if error != nil {
-                        NotificationManager.sendBolusFailureNotificationForAmount(bolus, atStartDate: startDate)
-                    }
                 }
             } else {
                 self.bolusState = nil

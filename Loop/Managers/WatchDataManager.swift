@@ -62,7 +62,7 @@ final class WatchDataManager: NSObject, WCSessionDelegate {
     private var lastComplicationContext: WatchContext?
 
     private let minTrendDrift: Double = 20
-    private lazy var minTrendUnit = HKUnit.milligramsPerDeciliterUnit()
+    private lazy var minTrendUnit = HKUnit.milligramsPerDeciliter()
 
     private func sendWatchContext(_ context: WatchContext) {
         if let session = watchSession, session.isPaired && session.isWatchAppInstalled {
@@ -154,10 +154,8 @@ final class WatchDataManager: NSObject, WCSessionDelegate {
             }
         case SetBolusUserInfo.name?:
             if let bolus = SetBolusUserInfo(rawValue: message as SetBolusUserInfo.RawValue) {
-                self.deviceDataManager.enactBolus(units: bolus.value) { (error) in
-                    if error != nil {
-                        NotificationManager.sendBolusFailureNotificationForAmount(bolus.value, atStartDate: bolus.startDate)
-                    } else {
+                self.deviceDataManager.enactBolus(units: bolus.value, at: bolus.startDate) { (error) in
+                    if error == nil {
                         AnalyticsManager.sharedManager.didSetBolusFromWatch(bolus.value)
                     }
 
